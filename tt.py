@@ -1,16 +1,18 @@
 #!/usr/bin/env python
 
-from datetime import datetime
+from datetime import datetime, time
 from sys import argv
 from os import path, makedirs
 from time import mktime
 import parsedatetime as pdt
+from prettytable import PrettyTable
 
 
 START       = 'start'
 STOP        = 'stop'
-SUMMARIZE   = 'summarize'
+SUMMARIZE   = 'summary'
 CURRENT     = 'current'
+REPORT      = 'report'
 FILENAME    = '.tt/log.txt'
 STOP_TASK   = 'Paused'
 
@@ -84,22 +86,32 @@ def print_boxed_line(msg, width=72, align='center'):
     ftn = getattr(msg, align)
     print "* %s *" % ftn(width-4)
 
+def parse_summary_elapsed(elapsed):
+    s = elapsed.seconds
+    hours = int(s / 3600)
+    s -= (hours * 3600)
+    minutes = round(s/60)
+
+    return hours, minutes
+
+
+def display_elapsed(elapsed):
+    h,m = parse_summary_elapsed(elapsed)
+    return display_hour_min(h,m)
+
+def display_hour_min(hour, min):
+    return "%02d:%02d" % (hour, min)
+
 def print_summary(summary, last_task, since):
-
-
     #todo - sort output
 
     lines = {}
     for task,elapsed in summary.iteritems():
-        s = elapsed.seconds
-        hours = int(s / 3600)
-        s -= (hours * 3600)
-        minutes = round(s/60)
+        hours, minutes = parse_summary_elapsed(elapsed)
 
+        lines[task] = display_hour_min(hours, minutes)
         if task==last_task:
-            lines[task] = "%02d:%02d+" % (hours, minutes)
-        else:
-            lines[task] = "%02d:%02d" % (hours, minutes)
+            lines[task] += "+"
 
     task_width = max([len(x) for x in lines.keys()])
     time_width = max([len(x) for x in lines.values()])
@@ -183,9 +195,110 @@ def get_summary(since):
 
     return (data, last_task, first_time)
 
+def make_title_table(body_table, title):
+    body_table.__str__() #force width calc
+    table = PrettyTable()
+    max_length = len(body_table._hrule)
+    pad_left = int((max_length - 2 - len(title))/2)
+    pad_right = max_length - 2 - len(title) - pad_left
+    table.left_padding_width = max(1,pad_left)
+    table.right_padding_width = max(1,pad_right)
+    table.add_row([title])
+    table._set_max_width(max_length-4)
+    table.header = False
 
-def current():
-    pass
+    return table
+
+def print_report(records, since):
+
+    table = PrettyTable(["Task", "Elapsed", "Start", "End"])
+    table.align["Task"] = 'l'
+    table.header = True
+
+    for i,record in enumerate(records):
+        try:
+            x = records[i+1]
+            print i, record
+            row = [record['task'],
+                   display_elapsed(record['elapsed']),
+                   datetime.strftime(record['start'], '%b %d, %I:%M %p'),
+                   datetime.strftime( record['end'],"%b %d, %I:%M %p")
+            ]
+        except:
+            print i, "last"
+            #last iteration
+            row = [record['task'],
+                   "--",
+                   datetime.strftime(record['start'], '%b %d, %I:%M %p'),
+                   "--"
+            ]
+
+
+        table.add_row(row)
+
+    header_text = "Task Summary since {:%b %d, %I:%M %p}".format(since)
+    heading = make_title_table(table,header_text)
+
+    print heading
+    print table
+
+def report(since):
+    CURRENT_TASK = '![current]!'
+
+    lines = get_sorted_lines()
+
+    if since is not None:
+        #add a fake line @ since time
+        lines.append(format_line(since, CURRENT_TASK).rstrip())
+        lines.sort()
+
+    last_time = None
+    last_task = None
+    first_time = since
+    records = []
+    for line in lines:
+        timestamp, task = line.split(" ", 1)
+        if last_time is None:
+            last_time = parse_timestamp(timestamp)
+
+        current_time =  parse_timestamp(timestamp)
+
+        if first_time is None:
+            first_time = current_time
+
+        if task==CURRENT_TASK:
+            task = last_task
+
+        time_interval = current_time - last_time
+
+        print (task, last_task)
+        if since is not None and current_time <= since:
+            pass
+        elif task==last_task:
+            #just update the last record
+            records[-1]['end'] = current_time
+            records[-1]['elapsed']+=time_interval
+        elif last_task is not None:
+            record = {'task':task, 'start':last_time, 'end':current_time, 'elapsed':time_interval}
+            records.append(record)
+
+        last_time = current_time
+        last_task = task
+
+    if task==last_task:
+        records[-1]['end'] = None
+        records[-1]['elapsed']=None
+    elif last_task is not None:
+        record = {'task':last_task, 'start':last_time, 'end':None, 'elapsed':None}
+        records.append(record)
+
+    print_report(records, first_time)
+
+def current(since):
+    summary, last_task, first_time = get_summary(since)
+    hours, minutes = parse_summary_elapsed(summary[last_task])
+
+    print "You've been working on '%s' for %s." % (last_task, display_hour_min(hours, minutes))
 
 def usage():
     print "Usage goes here"
@@ -209,7 +322,11 @@ def main():
         (command, task, time) = parse_input(argv, default_time=None)
         summarize(time)
     elif command==CURRENT:
+        (command, task, time) = parse_input(argv, default_time=None)
         current(time)
+    elif command==REPORT:
+        (command, task, time) = parse_input(argv, default_time=None)
+        report(time)
     else:
         print "Invalid command"
         exit()
