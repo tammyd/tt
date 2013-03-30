@@ -10,7 +10,7 @@ setup (
     version = "0.1",
     description="A simple command line utility to track the time you work on things.",
     author="Tammy D",
-    author_email="tammyd@gmail.com", 
+    author_email="tammyd@gmail.com",
     url="https://github.com/tammyd",
     package_data = {'': ['*.md']},
     packages = find_packages(exclude="test"),

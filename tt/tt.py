@@ -342,7 +342,7 @@ tt (Time Tracker) Help
 -----------------------------------------------------------------------------------
 
 Start tracking a task   : {0} start task description [-- time statement]
-Pause tracking:         : {0} start [-- time statement]
+Pause tracking:         : {0} stop [-- time statement]
 Restart last task       : {0} restart
 Show current task       : {0} current
 Show a task summary     : {0} summary [-- time statement]
@@ -350,7 +350,7 @@ Show the task report    : {0} report [-- time statement]
 Archive the current data: {0} archive
 Show this help          : {0} help
 
-Additionally, several command support "going back in time" to start or stop tasks,
+Additionally, several commands support "going back in time" to start or stop tasks,
 or produce subset summaries/reports. The syntax for these commands is to end the
 command with '-- some english time statement'. Type what you want in english and
 there's a very good chance we'll figure it out.
