@@ -47,9 +47,12 @@ def parse_input(args, default_time=datetime.now()):
 
     return (command, task, time)
 
-def get_handle(read_only=False):
+def get_full_filename():
     home = path.expanduser("~")
-    filename = "%s/%s" % (home,FILENAME)
+    return "%s/%s" % (home,FILENAME)
+
+def get_handle(read_only=False):
+    filename = get_full_filename()
     dir = path.dirname(filename)
     if not path.exists(dir):
         makedirs(dir)
@@ -199,7 +202,6 @@ def print_report(records, since):
     for i,record in enumerate(records):
         try:
             x = records[i+1]
-            print i, record
             row = [record['task'],
                    display_elapsed(record['elapsed']),
                    datetime.strftime(record['start'], '%b %d, %I:%M %p'),
@@ -222,7 +224,12 @@ def print_report(records, since):
     print heading
     print table
 
+
 def report(since):
+    report, first_time = get_report(since)
+    print_report(report, first_time)
+
+def get_report(since):
     CURRENT_TASK = '![current]!'
 
     lines = get_sorted_lines()
@@ -250,8 +257,6 @@ def report(since):
             task = last_task
 
         time_interval = current_time - last_time
-
-        print (task, last_task)
         if since is not None and current_time <= since:
             pass
         elif task==last_task:
@@ -272,13 +277,15 @@ def report(since):
         record = {'task':last_task, 'start':last_time, 'end':None, 'elapsed':None}
         records.append(record)
 
-    print_report(records, first_time)
+    return records, first_time
 
 def current(since):
-    summary, last_task, first_time = get_summary(since)
-    hours, minutes = parse_summary_elapsed(summary[last_task])
+    report, first_time = get_report(since)
+    time_interval = datetime.now() - report[-1]['start']
+    hours, minutes, sec = parse_summary_elapsed(time_interval)
 
-    print "You've been working on '%s' for %s." % (last_task, display_hour_min(hours, minutes))
+    print "You've been most recently working on '%s' for %s." % (report[-1]['task'], display_hms(hours, minutes, sec))
+
 
 def usage():
     print "Usage goes here"
