@@ -10,12 +10,6 @@ from os.path import  join, exists
 from shutil import move
 
 
-START       = 'start'
-STOP        = 'stop'
-SUMMARIZE   = 'summary'
-CURRENT     = 'current'
-REPORT      = 'report'
-ARCHIVE     = 'archive'
 FILENAME    = '.tt/log.txt'
 STOP_TASK   = 'Paused'
 
@@ -226,7 +220,7 @@ def print_report(records, since):
 
         table.add_row(row)
 
-    header_text = "Tasks since {:%b %d, %I:%M %p}".format(since)
+    header_text = "Tasks since {:%b %d %I:%M %p}".format(since)
     heading = make_title_table(table,header_text)
 
     print heading
@@ -267,18 +261,18 @@ def get_report(since):
         time_interval = current_time - last_time
         if since is not None and current_time <= since:
             pass
-        elif task==last_task:
+        elif len(records) > 0 and task==last_task:
             #just update the last record
             records[-1]['end'] = current_time
             records[-1]['elapsed']+=time_interval
         elif last_task is not None:
-            record = {'task':task, 'start':last_time, 'end':current_time, 'elapsed':time_interval}
+            record = {'task':last_task, 'start':last_time, 'end':current_time, 'elapsed':time_interval}
             records.append(record)
 
         last_time = current_time
         last_task = task
 
-    if task==last_task:
+    if len(records) > 0 and task==records[-1]['task']:
         records[-1]['end'] = None
         records[-1]['elapsed']=None
     elif last_task is not None:
@@ -287,12 +281,39 @@ def get_report(since):
 
     return records, first_time
 
-def current(since):
+def get_nth_entry_from_end(n, since):
     report, first_time = get_report(since)
-    time_interval = datetime.now() - report[-1]['start']
+    return report[-1*n]
+
+def restart_last():
+
+    paused = get_nth_entry_from_end(1, None)
+    if paused['task'] != STOP_TASK:
+        current(None) #already working on a task
+        return
+
+    n = 2
+    while(True):
+        try:
+            event = get_nth_entry_from_end(n, None)
+            if event['task'] != STOP_TASK:
+                last_event = get_nth_entry_from_end(n, None)
+                start(datetime.now(), last_event['task'])
+                print "Restarted %s" % last_event['task']
+                return
+
+        except:
+            print "Unable to find a task to restart"
+            return
+
+        n+=1
+
+def current(since):
+    event = get_nth_entry_from_end(1, since)
+    time_interval = datetime.now() -event['start']
     hours, minutes, sec = parse_summary_elapsed(time_interval)
 
-    print "You've working on '%s' for %s." % (report[-1]['task'], display_hms(hours, minutes, sec))
+    print "You've been working on '%s' for %s." % (event['task'], display_hms(hours, minutes, sec))
 
 def archive():
     print "Are you sure? [Y|N]"
@@ -328,6 +349,14 @@ def check_log():
 
 
 def main():
+    START       = 'start'
+    STOP        = 'stop'
+    SUMMARIZE   = 'summary'
+    CURRENT     = 'current'
+    REPORT      = 'report'
+    ARCHIVE     = 'archive'
+    RESTART     = 'restart'
+
     (command, task, time) = parse_input(argv)
 
     if command==START:
@@ -335,8 +364,9 @@ def main():
             start(time, task)
         else:
             #TODO: restart last task before paused
-            usage()
-
+            restart_last()
+    elif command==RESTART:
+        restart_last()
     elif command==STOP:
         if not check_log():
             return
@@ -366,15 +396,7 @@ def main():
             return
         archive()
     else:
-        #assume i really wanted to record a task
-        if task is None and command is not None:
-            start(time, command)
-        elif task is not None and command is None:
-            start(time, task)
-        elif task is not None and command is not None:
-            start(time, command + " " + task)
-        else:
-            usage()
+        usage()
 
 
 
