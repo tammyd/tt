@@ -13,13 +13,12 @@ from shutil import move
 FILENAME    = '.tt/log.txt'
 STOP_TASK   = 'Paused'
 
-
 def parse_time(time_string):
     parsed = pdt.Calendar().parse(time_string)
     time = datetime.fromtimestamp(mktime(parsed[0]))
 
     #sometimes this lib parses "ago" and sometimes it doesn't
-    if time_string.strip().endswith('ago') and time > datetime.now():
+    if time > datetime.now():
         time = datetime.now() - (time - datetime.now())
 
     return time
@@ -338,7 +337,42 @@ def archive():
 
 
 def usage():
-    print "Usage goes here"
+    usage = '''
+tt (Time Tracker) Help
+-----------------------------------------------------------------------------------
+
+Start tracking a task   : {0} start task description [-- time statement]
+Pause tracking:         : {0} start [-- time statement]
+Restart last task       : {0} restart
+Show current task       : {0} current
+Show a task summary     : {0} summary [-- time statement]
+Show the task report    : {0} report [-- time statement]
+Archive the current data: {0} archive
+Show this help          : {0} help
+
+Additionally, several command support "going back in time" to start or stop tasks,
+or produce subset summaries/reports. The syntax for these commands is to end the
+command with '-- some english time statement'. Type what you want in english and
+there's a very good chance we'll figure it out.
+
+Note that in the end all this application does is read and write the log file
+stored at ~/.tt/log.txt. It's pretty straightforward, but if you go messing with
+the file and this script breaks, don't blame me. Just delete or archive the file
+and start again!
+
+Examples:
+
+$ {0} start Feature A
+$ {0} stop Feature A -- 10 minutes ago
+$ {0} restart
+$ {0} start Feature B -- 1 hour ago
+$ {0} start Feature A
+$ {0} summary -- 2 hours ago
+
+'''.format(argv[0])
+
+    print usage
+
 
 def check_log():
     if not log_exists():
@@ -356,10 +390,13 @@ def main():
     REPORT      = 'report'
     ARCHIVE     = 'archive'
     RESTART     = 'restart'
+    HELP        = 'help'
 
     (command, task, time) = parse_input(argv)
 
-    if command==START:
+    if command==HELP:
+        usage()
+    elif command==START:
         if task is not None:
             start(time, task)
         else:
