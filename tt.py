@@ -74,58 +74,39 @@ def start(time, task):
 def stop(time):
     record(time, STOP_TASK)
 
-def print_header(msg, width=72):
-    print "*" * width
-    print_boxed_line(msg, width)
-    print "*" * width
-
-def print_footer(width=72):
-    print "*" * width
-
-def print_boxed_line(msg, width=72, align='center'):
-    ftn = getattr(msg, align)
-    print "* %s *" % ftn(width-4)
-
 def parse_summary_elapsed(elapsed):
-    s = elapsed.seconds
-    hours = int(s / 3600)
-    s -= (hours * 3600)
-    minutes = round(s/60)
+    seconds = elapsed.seconds
+    hours = int(seconds / 3600)
+    seconds -= (hours * 3600)
+    minutes = round(seconds/60)
+    seconds -= (minutes * 60)
 
-    return hours, minutes
-
+    return hours, minutes, seconds
 
 def display_elapsed(elapsed):
-    h,m = parse_summary_elapsed(elapsed)
-    return display_hour_min(h,m)
+    h,m,s = parse_summary_elapsed(elapsed)
+    return display_hms(h,m,s)
 
-def display_hour_min(hour, min):
-    return "%02d:%02d" % (hour, min)
+def display_hms(hour, min, seconds):
+    return "%02d:%02d:%02d" % (hour, min, seconds)
 
 def print_summary(summary, last_task, since):
     #todo - sort output
 
-    lines = {}
+    table = PrettyTable(["Task", "Elapsed", "Current"])
+    table.align["Task"] = 'l'
+    table.header = True
+
     for task,elapsed in summary.iteritems():
-        hours, minutes = parse_summary_elapsed(elapsed)
+        current = 'X' if task==last_task else "-"
+        row = [task, display_elapsed(elapsed), current]
+        table.add_row(row)
 
-        lines[task] = display_hour_min(hours, minutes)
-        if task==last_task:
-            lines[task] += "+"
+    header_text = "Task summary since {:%b %d %I:%M %p}".format(since)
+    heading = make_title_table(table,header_text)
 
-    task_width = max([len(x) for x in lines.keys()])
-    time_width = max([len(x) for x in lines.values()])
-
-    header_msg = "Task Summary since {:%Y-%m-%d %H:%M:%S}".format(since)
-    width = max(task_width + time_width + 6, len(header_msg) + 8)
-
-    print_header("Task Summary since {:%Y-%m-%d %H:%M:%S}".format(since), width=width)
-    for (task, elapsed) in lines.iteritems():
-        line = ("%s" % task).ljust(task_width) + ": %s" % elapsed
-        print_boxed_line(line, align='ljust',width=width)
-
-    print_footer(width=width)
-
+    print heading
+    print table.get_string(sortby="Elapsed")
 
 def parse_timestamp(ts):
     try:
@@ -225,7 +206,6 @@ def print_report(records, since):
                    datetime.strftime( record['end'],"%b %d, %I:%M %p")
             ]
         except:
-            print i, "last"
             #last iteration
             row = [record['task'],
                    "--",
@@ -236,7 +216,7 @@ def print_report(records, since):
 
         table.add_row(row)
 
-    header_text = "Task Summary since {:%b %d, %I:%M %p}".format(since)
+    header_text = "Tasks since {:%b %d, %I:%M %p}".format(since)
     heading = make_title_table(table,header_text)
 
     print heading
@@ -328,8 +308,9 @@ def main():
         (command, task, time) = parse_input(argv, default_time=None)
         report(time)
     else:
-        print "Invalid command"
-        exit()
+        if task is not None:
+            #assume i really wanted to record a task
+            start(time, task)
 
 
 if __name__ == "__main__":
