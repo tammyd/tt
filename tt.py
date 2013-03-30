@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
-from datetime import datetime, time
+from datetime import datetime
 from sys import argv
 from os import path, makedirs
 from time import mktime
 import parsedatetime as pdt
 from prettytable import PrettyTable
+from os.path import  join, exists
+from shutil import move
 
 
 START       = 'start'
@@ -13,6 +15,7 @@ STOP        = 'stop'
 SUMMARIZE   = 'summary'
 CURRENT     = 'current'
 REPORT      = 'report'
+ARCHIVE     = 'archive'
 FILENAME    = '.tt/log.txt'
 STOP_TASK   = 'Paused'
 
@@ -49,7 +52,11 @@ def parse_input(args, default_time=datetime.now()):
 
 def get_full_filename():
     home = path.expanduser("~")
-    return "%s/%s" % (home,FILENAME)
+    return join(home, FILENAME)
+
+def log_exists():
+    src = get_full_filename()
+    return exists(src)
 
 def get_handle(read_only=False):
     filename = get_full_filename()
@@ -193,6 +200,7 @@ def make_title_table(body_table, title):
 
     return table
 
+
 def print_report(records, since):
 
     table = PrettyTable(["Task", "Elapsed", "Start", "End"])
@@ -284,40 +292,91 @@ def current(since):
     time_interval = datetime.now() - report[-1]['start']
     hours, minutes, sec = parse_summary_elapsed(time_interval)
 
-    print "You've been most recently working on '%s' for %s." % (report[-1]['task'], display_hms(hours, minutes, sec))
+    print "You've working on '%s' for %s." % (report[-1]['task'], display_hms(hours, minutes, sec))
+
+def archive():
+    print "Are you sure? [Y|N]"
+    confirm = raw_input('--> ')
+
+    if confirm.upper() not in ['Y', 'YES']:
+        print "Ok - nothing changed"
+        return
+
+    src = get_full_filename()
+    dir = join(path.dirname(src), 'archive/')
+    if not path.exists(dir):
+        makedirs(dir)
+
+
+    new_filename = "log.{:%Y%m%dT%H%M%S}.txt".format(datetime.now())
+    dst = join(dir, new_filename)
+    move(src, dst)
+
+    print "Moved %s to %s" % (src,dst)
+
 
 
 def usage():
     print "Usage goes here"
 
+def check_log():
+    if not log_exists():
+        print "No entries yet!"
+        return False
+
+    return True
+
+
 def main():
-    (command, task, time) = parse_input(argv, )
+    (command, task, time) = parse_input(argv)
 
     if command==START:
         if task is not None:
             start(time, task)
         else:
+            #TODO: restart last task before paused
             usage()
 
     elif command==STOP:
+        if not check_log():
+            return
+
         if task is not None:
             start(time, task)
         else:
             stop(time)
     elif command==SUMMARIZE:
+        if not check_log():
+            return
         #reparse the time
         (command, task, time) = parse_input(argv, default_time=None)
         summarize(time)
     elif command==CURRENT:
+        if not check_log():
+            return
         (command, task, time) = parse_input(argv, default_time=None)
         current(time)
     elif command==REPORT:
+        if not check_log():
+            return
         (command, task, time) = parse_input(argv, default_time=None)
         report(time)
+    elif command==ARCHIVE:
+        if not check_log():
+            return
+        archive()
     else:
-        if task is not None:
-            #assume i really wanted to record a task
+        #assume i really wanted to record a task
+        if task is None and command is not None:
+            start(time, command)
+        elif task is not None and command is None:
             start(time, task)
+        elif task is not None and command is not None:
+            start(time, command + " " + task)
+        else:
+            usage()
+
+
 
 
 if __name__ == "__main__":
